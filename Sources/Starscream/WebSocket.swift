@@ -88,7 +88,7 @@ public enum WebSocketEvent {
 }
 
 public protocol WebSocketDelegate: AnyObject {
-    func didReceive(event: WebSocketEvent, client: WebSocketClient)
+    func didReceive(event: WebSocketEvent, client: WebSocket)
 }
 
 open class WebSocket: WebSocketClient, EngineDelegate {
