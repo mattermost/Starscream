@@ -44,6 +44,7 @@ public struct WSError: Error {
 public protocol WebSocketClient: AnyObject {
     func connect()
     func disconnect(closeCode: UInt16)
+    func url() -> String?
     func write(string: String, completion: (() -> ())?)
     func write(stringData: Data, completion: (() -> ())?)
     func write(data: Data, completion: (() -> ())?)
@@ -133,6 +134,10 @@ open class WebSocket: WebSocketClient, EngineDelegate {
     
     public func disconnect(closeCode: UInt16 = CloseCode.normal.rawValue) {
         engine.stop(closeCode: closeCode)
+    }
+
+    public func url() -> String? {
+        self.request.url?.absoluteString
     }
     
     public func forceDisconnect() {
