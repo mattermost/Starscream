@@ -35,7 +35,11 @@ public class TCPTransport: Transport {
     private weak var delegate: TransportEventClient?
     private var isRunning = false
     private var isTLS = false
-    
+   
+    deinit {
+        disconnect()
+    }
+ 
     public var usingTLS: Bool {
         return self.isTLS
     }
@@ -49,7 +53,7 @@ public class TCPTransport: Transport {
         //normal connection, will use the "connect" method below
     }
     
-    public func connect(url: URL, timeout: Double = 10, certificatePinning: CertificatePinning? = nil) {
+    public func connect(url: URL, timeout: Double = 10, certificatePinning: CertificatePinning? = nil, clientCredential: URLCredential? = nil) {
         guard let parts = url.getParts() else {
             delegate?.connectionChanged(state: .failed(TCPTransportError.invalidRequest))
             return
@@ -75,6 +79,12 @@ public class TCPTransport: Transport {
                     }
                 })
             }, queue)
+            
+            if let clientCredential = clientCredential {
+                sec_protocol_options_set_challenge_block(tlsOpts.securityProtocolOptions, { (_, completionHandler) in
+                    completionHandler(sec_identity_create(clientCredential.identity!)!)
+                }, queue)
+            }
         }
         let parameters = NWParameters(tls: tlsOptions, tcp: options)
         let conn = NWConnection(host: NWEndpoint.Host.name(parts.host, nil), port: NWEndpoint.Port(rawValue: UInt16(parts.port))!, using: parameters)
@@ -85,6 +95,7 @@ public class TCPTransport: Transport {
     public func disconnect() {
         isRunning = false
         connection?.cancel()
+        connection = nil
     }
     
     public func register(delegate: TransportEventClient) {
@@ -144,6 +155,13 @@ public class TCPTransport: Transport {
             
             // Refer to https://developer.apple.com/documentation/network/implementing_netcat_with_network_framework
             if let context = context, context.isFinal, isComplete {
+                if let delegate = s.delegate {
+                    // Let the owner of this TCPTransport decide what to do next: disconnect or reconnect?
+                    delegate.connectionChanged(state: .peerClosed)
+                } else {
+                    // No use to keep connection alive
+                    s.disconnect()
+                }
                 return
             }
             

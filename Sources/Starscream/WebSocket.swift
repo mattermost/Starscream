@@ -44,6 +44,7 @@ public struct WSError: Error {
 public protocol WebSocketClient: AnyObject {
     func connect()
     func disconnect(closeCode: UInt16)
+    func url() -> String?
     func write(string: String, completion: (() -> ())?)
     func write(stringData: Data, completion: (() -> ())?)
     func write(data: Data, completion: (() -> ())?)
@@ -85,6 +86,7 @@ public enum WebSocketEvent {
     case viabilityChanged(Bool)
     case reconnectSuggested(Bool)
     case cancelled
+    case peerClosed
 }
 
 public protocol WebSocketDelegate: AnyObject {
@@ -115,13 +117,13 @@ open class WebSocket: WebSocketClient, EngineDelegate {
         self.engine = engine
     }
     
-    public convenience init(request: URLRequest, certPinner: CertificatePinning? = FoundationSecurity(), compressionHandler: CompressionHandler? = nil, useCustomEngine: Bool = true) {
+    public convenience init(request: URLRequest, certPinner: CertificatePinning? = FoundationSecurity(), clientCredential: URLCredential? = nil, compressionHandler: CompressionHandler? = nil, useCustomEngine: Bool = true) {
         if #available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *), !useCustomEngine {
-            self.init(request: request, engine: NativeEngine())
+            self.init(request: request, engine: NativeEngine(clientCredential: clientCredential))
         } else if #available(macOS 10.14, iOS 12.0, watchOS 5.0, tvOS 12.0, *) {
-            self.init(request: request, engine: WSEngine(transport: TCPTransport(), certPinner: certPinner, compressionHandler: compressionHandler))
+            self.init(request: request, engine: WSEngine(transport: TCPTransport(), certPinner: certPinner, clientCredential: clientCredential, compressionHandler: compressionHandler))
         } else {
-            self.init(request: request, engine: WSEngine(transport: FoundationTransport(), certPinner: certPinner, compressionHandler: compressionHandler))
+            self.init(request: request, engine: WSEngine(transport: FoundationTransport(), certPinner: certPinner, clientCredential: clientCredential, compressionHandler: compressionHandler))
         }
     }
     
@@ -132,6 +134,10 @@ open class WebSocket: WebSocketClient, EngineDelegate {
     
     public func disconnect(closeCode: UInt16 = CloseCode.normal.rawValue) {
         engine.stop(closeCode: closeCode)
+    }
+
+    public func url() -> String? {
+        self.request.url?.absoluteString
     }
     
     public func forceDisconnect() {
